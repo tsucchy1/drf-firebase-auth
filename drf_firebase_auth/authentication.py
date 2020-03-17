@@ -174,28 +174,40 @@ class FirebaseAuthentication(BaseFirebaseAuthentication):
             user.save()
             return user
         except User.DoesNotExist:
-            if not api_settings.FIREBASE_CREATE_LOCAL_USER:
-                raise exceptions.AuthenticationFailed(
-                    'User is not registered to the application.'
+            # WHEN EMAIL UPDATED
+            try:
+                uid = firebase_user.uid
+                user = User.objects.get(firebase_user__uid=uid)
+                if not user.is_active:
+                    raise exceptions.AuthenticationFailed(
+                        'User account is not currently active.'
+                    )
+                user.last_login = timezone.now()
+                user.save()
+                return user
+            except User.DoesNotExist:
+                if not api_settings.FIREBASE_CREATE_LOCAL_USER:
+                    raise exceptions.AuthenticationFailed(
+                        'User is not registered to the application.'
+                    )
+                username = '_'.join(
+                    firebase_user.display_name.split(' ') if firebase_user.display_name \
+                    else str(uuid.uuid4())
                 )
-            username = '_'.join(
-                firebase_user.display_name.split(' ') if firebase_user.display_name \
-                else str(uuid.uuid4())
-            )
-            username = username if len(username) <= 30 else username[:30]
-            new_user = User.objects.create_user(
-                username=username,
-                email=email
-            )
-            new_user.last_login = timezone.now()
-            if api_settings.FIREBASE_ATTEMPT_CREATE_WITH_DISPLAY_NAME:
-                display_name = firebase_user.display_name.split()
-                if len(display_name) == 2:
-                    new_user.first_name = display_name[0]
-                    new_user.last_name = display_name[1]
-            new_user.save()
-            # self.create_local_firebase_user(new_user, firebase_user)
-            return new_user
+                username = username if len(username) <= 30 else username[:30]
+                new_user = User.objects.create_user(
+                    username=username,
+                    email=email
+                )
+                new_user.last_login = timezone.now()
+                if api_settings.FIREBASE_ATTEMPT_CREATE_WITH_DISPLAY_NAME:
+                    display_name = firebase_user.display_name.split()
+                    if len(display_name) == 2:
+                        new_user.first_name = display_name[0]
+                        new_user.last_name = display_name[1]
+                new_user.save()
+                # self.create_local_firebase_user(new_user, firebase_user)
+                return new_user
 
     def create_local_firebase_user(self, user, firebase_user):
         """
