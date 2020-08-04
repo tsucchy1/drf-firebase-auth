@@ -176,12 +176,18 @@ class FirebaseAuthentication(BaseFirebaseAuthentication):
         except User.DoesNotExist:
             # WHEN EMAIL UPDATED
             try:
+                """
+                UIDを元にユーザを取得できた場合は、メールアドレスのアップデートとみなす。
+                """
+                print('EMAIL UPDATE FLOW :{}'.format(email))
                 uid = firebase_user.uid
                 user = User.objects.get(firebase_user__uid=uid)
                 if not user.is_active:
                     raise exceptions.AuthenticationFailed(
                         'User account is not currently active.'
                     )
+                # UPDATE EMAIL
+                user.email = email
                 user.last_login = timezone.now()
                 user.save()
                 return user
